@@ -1,0 +1,251 @@
+// Excel Power Query M Code for Almanak Live Data
+// Copy this code into Excel Power Query Editor to fetch live data from APIs
+
+// Giza Token Data Query
+let
+    Source = Json.Document(Web.Contents("https://api.coingecko.com/api/v3/coins/giza")),
+    market_data = Source[market_data],
+    gizaData = Table.FromRecords({
+        [
+            Metric = "Symbol",
+            Value = Source[symbol],
+            Notes = "Token Symbol"
+        ],
+        [
+            Metric = "Name", 
+            Value = Source[name],
+            Notes = "Token Name"
+        ],
+        [
+            Metric = "Current Price",
+            Value = market_data[current_price][usd],
+            Notes = "Current USD Price"
+        ],
+        [
+            Metric = "Market Cap",
+            Value = market_data[market_cap][usd],
+            Notes = "Market Cap in USD"
+        ],
+        [
+            Metric = "FDV",
+            Value = market_data[fully_diluted_valuation][usd],
+            Notes = "Fully Diluted Valuation"
+        ],
+        [
+            Metric = "Total Supply",
+            Value = market_data[total_supply],
+            Notes = "Total Token Supply"
+        ],
+        [
+            Metric = "Circulating Supply",
+            Value = market_data[circulating_supply],
+            Notes = "Circulating Supply"
+        ],
+        [
+            Metric = "24h Price Change",
+            Value = market_data[price_change_percentage_24h],
+            Notes = "24 Hour Price Change %"
+        ],
+        [
+            Metric = "Market Cap Rank",
+            Value = market_data[market_cap_rank],
+            Notes = "Market Cap Ranking"
+        ]
+    })
+in
+    gizaData
+
+// Newton Token Data Query
+let
+    Source = Json.Document(Web.Contents("https://api.coingecko.com/api/v3/coins/newton-protocol")),
+    market_data = Source[market_data],
+    newtonData = Table.FromRecords({
+        [
+            Metric = "Symbol",
+            Value = Source[symbol],
+            Notes = "Token Symbol"
+        ],
+        [
+            Metric = "Name", 
+            Value = Source[name],
+            Notes = "Token Name"
+        ],
+        [
+            Metric = "Current Price",
+            Value = market_data[current_price][usd],
+            Notes = "Current USD Price"
+        ],
+        [
+            Metric = "Market Cap",
+            Value = market_data[market_cap][usd],
+            Notes = "Market Cap in USD"
+        ],
+        [
+            Metric = "FDV",
+            Value = market_data[fully_diluted_valuation][usd],
+            Notes = "Fully Diluted Valuation"
+        ],
+        [
+            Metric = "Total Supply",
+            Value = market_data[total_supply],
+            Notes = "Total Token Supply"
+        ],
+        [
+            Metric = "Circulating Supply",
+            Value = market_data[circulating_supply],
+            Notes = "Circulating Supply"
+        ],
+        [
+            Metric = "24h Price Change",
+            Value = market_data[price_change_percentage_24h],
+            Notes = "24 Hour Price Change %"
+        ],
+        [
+            Metric = "Market Cap Rank",
+            Value = market_data[market_cap_rank],
+            Notes = "Market Cap Ranking"
+        ]
+    })
+in
+    newtonData
+
+// Almanak TVL Query
+let
+    Source = Json.Document(Web.Contents("https://api.llama.fi/tvl/almanak")),
+    almanakTvl = Table.FromRecords({
+        [
+            Metric = "Almanak TVL",
+            Value = Source,
+            Notes = "Total Value Locked from DefiLlama"
+        ]
+    })
+in
+    almanakTvl
+
+// Combined Data Query (Main Sheet)
+let
+    // Fetch all data
+    gizaSource = Json.Document(Web.Contents("https://api.coingecko.com/api/v3/coins/giza")),
+    newtonSource = Json.Document(Web.Contents("https://api.coingecko.com/api/v3/coins/newton-protocol")),
+    almanakTvlSource = Json.Document(Web.Contents("https://api.llama.fi/tvl/almanak")),
+    
+    // Extract values
+    gizaFdv = gizaSource[market_data][fully_diluted_valuation][usd],
+    newtonFdv = newtonSource[market_data][fully_diluted_valuation][usd],
+    almanakTvl = almanakTvlSource,
+    
+    // Constants
+    almanakSupply = 1000000000,
+    csnapperAllocation = 0.5,
+    pointProgramAllocation = 0.048333,
+    phase1PointsPerDay = 150000,
+    phase1TotalPoints = 4650000,
+    phase2PointsPerDay = 333333,
+    phase2TotalPoints = 12987000,
+    gizaTvl = 16389772,
+    
+    // Calculations
+    almanakFdvGiza = gizaFdv,
+    almanakPriceGiza = gizaFdv / almanakSupply,
+    csnapperAllocationValue = (gizaFdv * csnapperAllocation) / 100,
+    pointProgramAllocationValue = (gizaFdv * pointProgramAllocation) / 100,
+    phase1TotalValue = (gizaFdv * phase1TotalPoints) / almanakSupply,
+    phase2TotalValue = (gizaFdv * phase2TotalPoints) / almanakSupply,
+    
+    almanakFdvNewton = newtonFdv,
+    almanakPriceNewton = newtonFdv / almanakSupply,
+    csnapperAllocationValueNewton = (newtonFdv * csnapperAllocation) / 100,
+    pointProgramAllocationValueNewton = (newtonFdv * pointProgramAllocation) / 100,
+    phase1TotalValueNewton = (newtonFdv * phase1TotalPoints) / almanakSupply,
+    phase2TotalValueNewton = (newtonFdv * phase2TotalPoints) / almanakSupply,
+    
+    tvlRatio = almanakTvl / gizaTvl,
+    tvlDifference = almanakTvl - gizaTvl,
+    tvlPercentage = (almanakTvl / gizaTvl) * 100,
+    csnapperValueTvl = gizaFdv * tvlRatio * csnapperAllocation / 100,
+    phase1ValueTvl = gizaFdv * tvlRatio * phase1TotalPoints / almanakSupply,
+    phase2ValueTvl = gizaFdv * tvlRatio * phase2TotalPoints / almanakSupply,
+    
+    // Create combined table
+    combinedData = Table.FromRecords({
+        // Token Information
+        [Section = "Token Information", Metric = "Giza Token Symbol", Value = gizaSource[symbol], Notes = ""],
+        [Section = "Token Information", Metric = "Giza Token Name", Value = gizaSource[name], Notes = ""],
+        [Section = "Token Information", Metric = "Giza Current Price", Value = gizaSource[market_data][current_price][usd], Notes = ""],
+        [Section = "Token Information", Metric = "Giza Market Cap", Value = gizaSource[market_data][market_cap][usd], Notes = ""],
+        [Section = "Token Information", Metric = "Giza FDV", Value = gizaFdv, Notes = ""],
+        [Section = "Token Information", Metric = "Giza Total Supply", Value = gizaSource[market_data][total_supply], Notes = ""],
+        [Section = "Token Information", Metric = "Giza Circulating Supply", Value = gizaSource[market_data][circulating_supply], Notes = ""],
+        [Section = "Token Information", Metric = "Giza 24h Price Change", Value = gizaSource[market_data][price_change_percentage_24h], Notes = ""],
+        [Section = "Token Information", Metric = "Giza Market Cap Rank", Value = gizaSource[market_data][market_cap_rank], Notes = ""],
+        
+        [Section = "Token Information", Metric = "Newton Token Symbol", Value = newtonSource[symbol], Notes = ""],
+        [Section = "Token Information", Metric = "Newton Token Name", Value = newtonSource[name], Notes = ""],
+        [Section = "Token Information", Metric = "Newton Current Price", Value = newtonSource[market_data][current_price][usd], Notes = ""],
+        [Section = "Token Information", Metric = "Newton Market Cap", Value = newtonSource[market_data][market_cap][usd], Notes = ""],
+        [Section = "Token Information", Metric = "Newton FDV", Value = newtonFdv, Notes = ""],
+        [Section = "Token Information", Metric = "Newton Total Supply", Value = newtonSource[market_data][total_supply], Notes = ""],
+        [Section = "Token Information", Metric = "Newton Circulating Supply", Value = newtonSource[market_data][circulating_supply], Notes = ""],
+        [Section = "Token Information", Metric = "Newton 24h Price Change", Value = newtonSource[market_data][price_change_percentage_24h], Notes = ""],
+        [Section = "Token Information", Metric = "Newton Market Cap Rank", Value = newtonSource[market_data][market_cap_rank], Notes = ""],
+        
+        [Section = "Token Information", Metric = "Almanak Total Supply", Value = almanakSupply, Notes = "1 billion tokens"],
+        [Section = "Token Information", Metric = "Giza TVL", Value = gizaTvl, Notes = "Fixed value"],
+        [Section = "Token Information", Metric = "Almanak TVL", Value = almanakTvl, Notes = "From DefiLlama API"],
+        
+        // Allocation Parameters
+        [Section = "Allocation Parameters", Metric = "CSNapper Allocation", Value = (almanakSupply * csnapperAllocation) / 100, Notes = csnapperAllocation & "%"],
+        [Section = "Allocation Parameters", Metric = "Point Program Tokens", Value = (almanakSupply * pointProgramAllocation) / 100, Notes = pointProgramAllocation & "%"],
+        [Section = "Allocation Parameters", Metric = "Phase 1 Points Per Day", Value = phase1PointsPerDay, Notes = ""],
+        [Section = "Allocation Parameters", Metric = "Phase 1 Total Points", Value = phase1TotalPoints, Notes = ""],
+        [Section = "Allocation Parameters", Metric = "Phase 2 Points Per Day", Value = phase2PointsPerDay, Notes = ""],
+        [Section = "Allocation Parameters", Metric = "Phase 2 Total Points", Value = phase2TotalPoints, Notes = ""],
+        
+        // Giza FDV Comparison
+        [Section = "Giza FDV Comparison", Metric = "Almanak FDV at Giza FDV", Value = almanakFdvGiza, Notes = "Equals Giza FDV"],
+        [Section = "Giza FDV Comparison", Metric = "Almanak Token Price at Giza FDV", Value = almanakPriceGiza, Notes = "Giza FDV / Almanak Supply"],
+        [Section = "Giza FDV Comparison", Metric = "Almanak Market Cap at Giza FDV", Value = almanakFdvGiza, Notes = "Equals Giza FDV"],
+        [Section = "Giza FDV Comparison", Metric = "CSNapper Allocation Value", Value = csnapperAllocationValue, Notes = "Giza FDV * " & csnapperAllocation & "%"],
+        [Section = "Giza FDV Comparison", Metric = "CSNapper Tokens", Value = (almanakSupply * csnapperAllocation) / 100, Notes = "Almanak Supply * " & csnapperAllocation & "%"],
+        [Section = "Giza FDV Comparison", Metric = "Point Program Allocation Value", Value = pointProgramAllocationValue, Notes = "Giza FDV * " & pointProgramAllocation & "%"],
+        [Section = "Giza FDV Comparison", Metric = "Phase 1 Total Value", Value = phase1TotalValue, Notes = "Giza FDV * Phase 1 Points / Almanak Supply"],
+        [Section = "Giza FDV Comparison", Metric = "Phase 2 Total Value", Value = phase2TotalValue, Notes = "Giza FDV * Phase 2 Points / Almanak Supply"],
+        [Section = "Giza FDV Comparison", Metric = "Phase 1 Value per Point", Value = phase1TotalValue / phase1TotalPoints, Notes = "Phase 1 Total Value / Phase 1 Total Points"],
+        [Section = "Giza FDV Comparison", Metric = "Phase 2 Value per Point", Value = phase2TotalValue / phase2TotalPoints, Notes = "Phase 2 Total Value / Phase 2 Total Points"],
+        
+        // Newton FDV Comparison
+        [Section = "Newton FDV Comparison", Metric = "Almanak FDV at Newton FDV", Value = almanakFdvNewton, Notes = "Equals Newton FDV"],
+        [Section = "Newton FDV Comparison", Metric = "Almanak Token Price at Newton FDV", Value = almanakPriceNewton, Notes = "Newton FDV / Almanak Supply"],
+        [Section = "Newton FDV Comparison", Metric = "Almanak Market Cap at Newton FDV", Value = almanakFdvNewton, Notes = "Equals Newton FDV"],
+        [Section = "Newton FDV Comparison", Metric = "CSNapper Allocation Value", Value = csnapperAllocationValueNewton, Notes = "Newton FDV * " & csnapperAllocation & "%"],
+        [Section = "Newton FDV Comparison", Metric = "CSNapper Tokens", Value = (almanakSupply * csnapperAllocation) / 100, Notes = "Almanak Supply * " & csnapperAllocation & "%"],
+        [Section = "Newton FDV Comparison", Metric = "Point Program Allocation Value", Value = pointProgramAllocationValueNewton, Notes = "Newton FDV * " & pointProgramAllocation & "%"],
+        [Section = "Newton FDV Comparison", Metric = "Phase 1 Total Value", Value = phase1TotalValueNewton, Notes = "Newton FDV * Phase 1 Points / Almanak Supply"],
+        [Section = "Newton FDV Comparison", Metric = "Phase 2 Total Value", Value = phase2TotalValueNewton, Notes = "Newton FDV * Phase 2 Points / Almanak Supply"],
+        [Section = "Newton FDV Comparison", Metric = "Phase 1 Value per Point", Value = phase1TotalValueNewton / phase1TotalPoints, Notes = "Phase 1 Total Value / Phase 1 Total Points"],
+        [Section = "Newton FDV Comparison", Metric = "Phase 2 Value per Point", Value = phase2TotalValueNewton / phase2TotalPoints, Notes = "Phase 2 Total Value / Phase 2 Total Points"],
+        
+        // TVL Analysis
+        [Section = "TVL Analysis", Metric = "TVL Ratio", Value = tvlRatio, Notes = "Almanak TVL / Giza TVL"],
+        [Section = "TVL Analysis", Metric = "TVL Difference", Value = tvlDifference, Notes = "Almanak TVL - Giza TVL"],
+        [Section = "TVL Analysis", Metric = "TVL Percentage", Value = tvlPercentage, Notes = "(Almanak TVL / Giza TVL) * 100"],
+        [Section = "TVL Analysis", Metric = "CSNapper Value (TVL Based)", Value = csnapperValueTvl, Notes = "Giza FDV * TVL Ratio * " & csnapperAllocation & "%"],
+        [Section = "TVL Analysis", Metric = "Phase 1 Value (TVL Based)", Value = phase1ValueTvl, Notes = "Giza FDV * TVL Ratio * Phase 1 Points / Almanak Supply"],
+        [Section = "TVL Analysis", Metric = "Phase 2 Value (TVL Based)", Value = phase2ValueTvl, Notes = "Giza FDV * TVL Ratio * Phase 2 Points / Almanak Supply"],
+        
+        // Key Insights
+        [Section = "Key Insights", Metric = "Almanak vs Giza FDV", Value = almanakFdvGiza, Notes = "Comparison"],
+        [Section = "Key Insights", Metric = "Almanak vs Newton FDV", Value = almanakFdvNewton, Notes = "Comparison"],
+        [Section = "Key Insights", Metric = "Token Price at Giza FDV", Value = almanakPriceGiza, Notes = "Price per token"],
+        [Section = "Key Insights", Metric = "Token Price at Newton FDV", Value = almanakPriceNewton, Notes = "Price per token"],
+        [Section = "Key Insights", Metric = "CSNapper Value at Giza FDV", Value = csnapperAllocationValue, Notes = "Allocation value"],
+        [Section = "Key Insights", Metric = "CSNapper Value at Newton FDV", Value = csnapperAllocationValueNewton, Notes = "Allocation value"],
+        [Section = "Key Insights", Metric = "Phase 1 Points Value at Giza FDV", Value = phase1TotalValue, Notes = "Points value"],
+        [Section = "Key Insights", Metric = "Phase 1 Points Value at Newton FDV", Value = phase1TotalValueNewton, Notes = "Points value"],
+        [Section = "Key Insights", Metric = "Phase 2 Points Value at Giza FDV", Value = phase2TotalValue, Notes = "Points value"],
+        [Section = "Key Insights", Metric = "Phase 2 Points Value at Newton FDV", Value = phase2TotalValueNewton, Notes = "Points value"],
+        [Section = "Key Insights", Metric = "Total Allocation Value at Giza FDV", Value = csnapperAllocationValue + phase1TotalValue + phase2TotalValue, Notes = "Combined value"],
+        [Section = "Key Insights", Metric = "Total Allocation Value at Newton FDV", Value = csnapperAllocationValueNewton + phase1TotalValueNewton + phase2TotalValueNewton, Notes = "Combined value"]
+    })
+in
+    combinedData
