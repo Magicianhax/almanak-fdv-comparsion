@@ -27,10 +27,60 @@ const App: React.FC = () => {
   });
 
   const [customPoints, setCustomPoints] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'basic' | 'tvl'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'tvl' | 'bonus'>('basic');
   const [almanakTvl, setAlmanakTvl] = useState<number>(0);
   const [gizaTvl, setGizaTvl] = useState<number>(16389772); // Default fallback value
   const [tvlLoading, setTvlLoading] = useState<boolean>(false);
+
+  // Handle URL routing for tabs
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'basic' || hash === 'tvl' || hash === 'bonus') {
+      setActiveTab(hash);
+    } else {
+      // Set default tab and update URL
+      setActiveTab('basic');
+      window.location.hash = 'basic';
+    }
+  }, []);
+
+  const handleTabChange = (tab: 'basic' | 'tvl' | 'bonus') => {
+    setActiveTab(tab);
+    window.location.hash = tab;
+  };
+
+  // Bonus calculator state
+  const [bonusInputs, setBonusInputs] = useState({
+    assumedFdv: 0, // in millions USD
+    userDeposit: 0, // in USD
+    currentTvl: 0 // in USD (full value, not millions)
+  });
+
+  // Calculate bonus APR based on Phase 2 points
+  const calculateBonusApr = () => {
+    if (bonusInputs.currentTvl <= 0 || bonusInputs.userDeposit <= 0 || bonusInputs.assumedFdv <= 0) {
+      return 0;
+    }
+    
+    // Phase 2 points per day: 333,333
+    // Total Phase 2 points: 12,987,000
+    // Calculate points value based on FDV
+    const pointsValuePerDay = (data.phase2PointsPerDay * bonusInputs.assumedFdv * 1000000) / data.almanakSupply;
+    
+    // Calculate user's share of points based on their deposit vs total TVL
+    const userShareOfPoints = (bonusInputs.userDeposit / bonusInputs.currentTvl) * pointsValuePerDay;
+    
+    // Calculate APR: (daily value * 365 / user deposit) * 100
+    const apr = (userShareOfPoints * 365 / bonusInputs.userDeposit) * 100;
+    
+    return apr;
+  };
+
+  // Calculate yearly bonus in USD
+  const calculateYearlyBonus = () => {
+    const apr = calculateBonusApr();
+    return (bonusInputs.userDeposit * apr) / 100;
+  };
 
   const fetchTokenDataForComparison = async () => {
     try {
@@ -154,7 +204,7 @@ const App: React.FC = () => {
           <div className="bg-white/80 backdrop-blur-sm rounded-xl p-1 border border-green-200 shadow-lg">
             <div className="flex space-x-1">
               <button
-                onClick={() => setActiveTab('basic')}
+                onClick={() => handleTabChange('basic')}
                 className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
                   activeTab === 'basic'
                     ? 'bg-green-500 text-white shadow-md'
@@ -164,7 +214,7 @@ const App: React.FC = () => {
                 Basic
               </button>
               <button
-                onClick={() => setActiveTab('tvl')}
+                onClick={() => handleTabChange('tvl')}
                 className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
                   activeTab === 'tvl'
                     ? 'bg-green-500 text-white shadow-md'
@@ -172,6 +222,16 @@ const App: React.FC = () => {
                 }`}
               >
                 TVL Based
+              </button>
+              <button
+                onClick={() => handleTabChange('bonus')}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                  activeTab === 'bonus'
+                    ? 'bg-green-500 text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                Bonus
               </button>
             </div>
           </div>
@@ -542,6 +602,117 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
+
+                 {activeTab === 'bonus' && (
+           <div className="mb-8">
+             {/* Calculator Inputs */}
+             <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 mb-8 border border-green-200 shadow-lg">
+               <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">ALMANAK BONUS APR CALCULATOR</h2>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                 <div>
+                   <label className="block text-gray-800 font-semibold mb-2">
+                     Assumed FDV Value (Millions USD)
+                   </label>
+                   <div className="flex items-center">
+                     <input
+                       type="number"
+                       value={bonusInputs.assumedFdv}
+                       onChange={(e) => setBonusInputs(prev => ({ ...prev, assumedFdv: Number(e.target.value) }))}
+                       className="flex-1 p-3 rounded-lg border border-green-300 focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-center text-lg"
+                       placeholder="Enter FDV in millions"
+                     />
+                     <span className="ml-2 text-gray-600 font-semibold">M USD</span>
+                   </div>
+                 </div>
+                 <div>
+                   <label className="block text-gray-800 font-semibold mb-2">
+                     Your deposit in Almanak Vaults (USD)
+                   </label>
+                   <div className="flex items-center">
+                     <input
+                       type="number"
+                       value={bonusInputs.userDeposit}
+                       onChange={(e) => setBonusInputs(prev => ({ ...prev, userDeposit: Number(e.target.value) }))}
+                       className="flex-1 p-3 rounded-lg border border-green-300 focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-center text-lg"
+                       placeholder="Enter deposit amount"
+                     />
+                     <span className="ml-2 text-gray-600 font-semibold">USD</span>
+                   </div>
+                 </div>
+                 <div>
+                   <label className="block text-gray-800 font-semibold mb-2">
+                     Current Almanak TVL (USD)
+                   </label>
+                   <div className="flex items-center">
+                     <input
+                       type="number"
+                       value={bonusInputs.currentTvl}
+                       onChange={(e) => setBonusInputs(prev => ({ ...prev, currentTvl: Number(e.target.value) }))}
+                       className="flex-1 p-3 rounded-lg border border-green-300 focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-center text-lg"
+                       placeholder="Enter TVL (e.g., 24157038)"
+                     />
+                     <span className="ml-2 text-gray-600 font-semibold">USD</span>
+                   </div>
+                 </div>
+               </div>
+             </div>
+
+             {/* Calculated Results */}
+             <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 mb-8 border border-green-200 shadow-lg">
+               <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Calculated Results</h2>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div className="text-center">
+                   <h3 className="text-xl font-bold text-gray-900 mb-4">Bonus APR</h3>
+                   <div className="text-4xl font-bold text-green-600 mb-2">
+                     {calculateBonusApr().toFixed(2)}%
+                   </div>
+                   <p className="text-sm text-gray-600">
+                     Annual Percentage Rate based on Phase 2 points
+                   </p>
+                 </div>
+                 <div className="text-center">
+                   <h3 className="text-xl font-bold text-gray-900 mb-4">Yearly Bonus (USD)</h3>
+                   <div className="text-4xl font-bold text-green-600 mb-2">
+                     ${calculateYearlyBonus().toFixed(2)}
+                   </div>
+                   <p className="text-sm text-gray-600">
+                     Estimated yearly bonus earnings
+                   </p>
+                 </div>
+               </div>
+             </div>
+
+             {/* Phase 2 Points Information */}
+             <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 mb-8 border border-green-200 shadow-lg">
+               <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Phase 2 Points Information</h2>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                 <div className="text-center">
+                   <h3 className="text-lg font-bold text-gray-900 mb-2">Points Per Day</h3>
+                   <div className="text-2xl font-bold text-purple-600">
+                     {data.phase2PointsPerDay.toLocaleString()}
+                   </div>
+                   <p className="text-sm text-gray-600">Daily point distribution</p>
+                 </div>
+                 <div className="text-center">
+                   <h3 className="text-lg font-bold text-gray-900 mb-2">Total Phase 2 Points</h3>
+                   <div className="text-2xl font-bold text-purple-600">
+                     {data.phase2TotalPoints.toLocaleString()}
+                   </div>
+                   <p className="text-sm text-gray-600">Total points in Phase 2</p>
+                 </div>
+                 <div className="text-center">
+                   <h3 className="text-lg font-bold text-gray-900 mb-2">Points Value (Daily)</h3>
+                   <div className="text-2xl font-bold text-purple-600">
+                     ${bonusInputs.assumedFdv > 0 ? ((data.phase2PointsPerDay * bonusInputs.assumedFdv * 1000000) / data.almanakSupply).toFixed(2) : '0.00'}
+                   </div>
+                   <p className="text-sm text-gray-600">Daily points value at assumed FDV</p>
+                 </div>
+               </div>
+             </div>
+
+             
+           </div>
+         )}
 
         {/* Footer */}
         <div className="text-center text-gray-600 text-sm">
