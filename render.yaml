@@ -2,7 +2,7 @@ services:
   - type: web
     name: almanak-app
     env: node
-    buildCommand: npm ci && npm run build
+    buildCommand: npm run render-build
     startCommand: npm run server
     envVars:
       - key: NODE_ENV

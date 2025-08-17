@@ -27,7 +27,8 @@
     "server": "node server.js",
     "dev": "concurrently \"npm run server\" \"npm run start\"",
     "render-postbuild": "npm run build",
-    "postinstall": "echo 'Dependencies installed successfully'"
+    "postinstall": "echo 'Dependencies installed successfully'",
+    "render-build": "npm install && npm run build"
   },
   "eslintConfig": {
     "extends": [
