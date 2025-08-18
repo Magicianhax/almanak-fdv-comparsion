@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { fetchTokenData } from './services/coingecko';
+import { fetchUSDCBalance } from './services/ethereum';
 import { ComparisonData } from './types';
 import ComparisonCard from './components/ComparisonCard';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -29,6 +30,8 @@ const App: React.FC = () => {
   const [customPoints, setCustomPoints] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<'basic' | 'tvl' | 'bonus'>('basic');
   const [almanakTvl, setAlmanakTvl] = useState<number>(0);
+  const [almanakDefiLlamaTvl, setAlmanakDefiLlamaTvl] = useState<number>(0);
+  const [almanakUsdcBalance, setAlmanakUsdcBalance] = useState<number>(0);
   const [gizaTvl, setGizaTvl] = useState<number>(16389772); // Default fallback value
   const [tvlLoading, setTvlLoading] = useState<boolean>(false);
 
@@ -82,7 +85,7 @@ const App: React.FC = () => {
     return (bonusInputs.userDeposit * apr) / 100;
   };
 
-  const fetchTokenDataForComparison = async () => {
+  const fetchTokenDataForComparison = useCallback(async () => {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
       
@@ -117,23 +120,38 @@ const App: React.FC = () => {
         error: 'Failed to fetch token data. Please try again.'
       }));
     }
-  };
+  }, [data.csnapperAllocation, data.pointProgramAllocation, data.phase1TotalPoints, data.phase2TotalPoints, data.almanakSupply]);
 
-  const fetchAlmanakTvl = async () => {
+  const fetchAlmanakTvl = useCallback(async () => {
     try {
       setTvlLoading(true);
-      const response = await fetch('https://api.llama.fi/tvl/almanak');
-      const tvl = await response.json();
-      setAlmanakTvl(tvl);
+      // Target address for USDC balance
+      const targetAddress = '0x6402D60bEE5e67226F19CFD08A1734586e6c3954';
+      
+      // Fetch DeFiLlama TVL and USDC balance separately for transparency
+      const [defiLlamaTvl, usdcBalance] = await Promise.all([
+        fetch('https://api.llama.fi/tvl/almanak').then(res => res.json()).catch(() => 0),
+        fetchUSDCBalance(targetAddress).catch(() => 0)
+      ]);
+      
+      // Set individual components
+      setAlmanakDefiLlamaTvl(defiLlamaTvl);
+      setAlmanakUsdcBalance(usdcBalance);
+      
+      // Set combined TVL
+      const combinedTvl = defiLlamaTvl + usdcBalance;
+      setAlmanakTvl(combinedTvl);
     } catch (error) {
       console.error('Failed to fetch Almanak TVL:', error);
       setAlmanakTvl(0);
+      setAlmanakDefiLlamaTvl(0);
+      setAlmanakUsdcBalance(0);
     } finally {
       setTvlLoading(false);
     }
-  };
+  }, []);
 
-  const fetchGizaTvl = async () => {
+  const fetchGizaTvl = useCallback(async () => {
     try {
       const backendUrl = process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:3001';
       const response = await fetch(`${backendUrl}/api/arma/stats`);
@@ -144,13 +162,13 @@ const App: React.FC = () => {
       console.error('Failed to fetch Giza TVL:', error);
       // Keep the default fallback value
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchTokenDataForComparison();
     fetchAlmanakTvl();
     fetchGizaTvl();
-  }, []);
+  }, [fetchTokenDataForComparison, fetchAlmanakTvl, fetchGizaTvl]);
 
   const handleCustomPointsChange = (newPoints: number) => {
     setCustomPoints(newPoints);
@@ -357,6 +375,14 @@ const App: React.FC = () => {
                     <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
                     <span className="text-sm text-gray-600">Almanak TVL: ${almanakTvl.toLocaleString()}</span>
                   </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-cyan-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">DeFiLlama: ${almanakDefiLlamaTvl.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">USDC Balance: ${almanakUsdcBalance.toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
 
@@ -562,6 +588,14 @@ const App: React.FC = () => {
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
                     <span className="text-gray-800">Almanak TVL: <strong className="text-blue-600">${almanakTvl.toLocaleString()}</strong></span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-cyan-500 rounded-full mr-3"></div>
+                    <span className="text-gray-800">├─ DeFiLlama: <strong className="text-cyan-600">${almanakDefiLlamaTvl.toLocaleString()}</strong></span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
+                    <span className="text-gray-800">└─ USDC Balance: <strong className="text-purple-600">${almanakUsdcBalance.toLocaleString()}</strong></span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
