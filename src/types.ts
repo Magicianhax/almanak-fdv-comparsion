@@ -33,6 +33,14 @@ export interface ComparisonData {
   error: string | null;
 }
 
+export interface GizaTvlData {
+  armaTvl: number;
+  pulseTvlEth: number;
+  pulseTvlUsd: number;
+  totalTvl: number;
+  ethPrice: number;
+}
+
 export interface CoinGeckoResponse {
   data: TokenData[];
 }

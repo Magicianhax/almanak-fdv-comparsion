@@ -38,6 +38,32 @@ app.get('/api/arma/stats', async (req, res) => {
   }
 });
 
+// Proxy endpoint for Pulse API
+app.get('/api/pulse/stats', async (req, res) => {
+  try {
+    const response = await fetch('https://api.usepulse.xyz/api/v1/metrics/stats', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Almanak-App/1.0'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching Pulse API data:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch Pulse API data',
+      message: error.message 
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 

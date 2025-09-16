@@ -35,3 +35,23 @@ export const fetchTokenData = async (tokenId: string): Promise<TokenData> => {
     throw new Error('Failed to fetch token data');
   }
 };
+
+/**
+ * Fetch current ETH price in USD from CoinGecko
+ * @returns Promise<number> - ETH price in USD
+ */
+export const fetchEthPrice = async (): Promise<number> => {
+  try {
+    const response = await axios.get(`${COINGECKO_API_BASE}/simple/price`, {
+      params: {
+        ids: 'ethereum',
+        vs_currencies: 'usd'
+      }
+    });
+    
+    return response.data.ethereum.usd;
+  } catch (error) {
+    console.error('Error fetching ETH price:', error);
+    throw new Error('Failed to fetch ETH price');
+  }
+};

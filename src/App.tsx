@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchTokenData } from './services/coingecko';
 import { fetchUSDCBalance } from './services/ethereum';
-import { ComparisonData } from './types';
+import { fetchPulseTvlData } from './services/pulse';
+import { ComparisonData, GizaTvlData } from './types';
 import ComparisonCard from './components/ComparisonCard';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorDisplay from './components/ErrorDisplay';
@@ -32,7 +33,13 @@ const App: React.FC = () => {
   const [almanakTvl, setAlmanakTvl] = useState<number>(0);
   const [almanakDefiLlamaTvl, setAlmanakDefiLlamaTvl] = useState<number>(0);
   const [almanakUsdcBalance, setAlmanakUsdcBalance] = useState<number>(0);
-  const [gizaTvl, setGizaTvl] = useState<number>(16389772); // Default fallback value
+  const [gizaTvlData, setGizaTvlData] = useState<GizaTvlData>({
+    armaTvl: 0,
+    pulseTvlEth: 0,
+    pulseTvlUsd: 0,
+    totalTvl: 16389772, // Default fallback value
+    ethPrice: 0
+  });
   const [tvlLoading, setTvlLoading] = useState<boolean>(false);
 
   // Handle URL routing for tabs
@@ -124,7 +131,6 @@ const App: React.FC = () => {
 
   const fetchAlmanakTvl = useCallback(async () => {
     try {
-      setTvlLoading(true);
       // Target address for USDC balance
       const targetAddress = '0x6402D60bEE5e67226F19CFD08A1734586e6c3954';
       
@@ -146,21 +152,35 @@ const App: React.FC = () => {
       setAlmanakTvl(0);
       setAlmanakDefiLlamaTvl(0);
       setAlmanakUsdcBalance(0);
-    } finally {
-      setTvlLoading(false);
     }
   }, []);
 
   const fetchGizaTvl = useCallback(async () => {
     try {
+      setTvlLoading(true);
       const backendUrl = process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:3001';
-      const response = await fetch(`${backendUrl}/api/arma/stats`);
-      const data = await response.json();
-      // Only use the total_balance (TVL) from Arma API, not displaying other stats
-      setGizaTvl(data.total_balance);
+      
+      // Fetch both Arma and Pulse TVL data in parallel
+      const [armaResponse, pulseData] = await Promise.all([
+        fetch(`${backendUrl}/api/arma/stats`).then(res => res.json()).catch(() => ({ total_balance: 0 })),
+        fetchPulseTvlData().catch(() => ({ tvlEth: 0, tvlUsd: 0, ethPrice: 0 }))
+      ]);
+
+      const armaTvl = armaResponse.total_balance || 0;
+      const totalTvl = armaTvl + pulseData.tvlUsd;
+
+      setGizaTvlData({
+        armaTvl,
+        pulseTvlEth: pulseData.tvlEth,
+        pulseTvlUsd: pulseData.tvlUsd,
+        totalTvl,
+        ethPrice: pulseData.ethPrice
+      });
     } catch (error) {
-      console.error('Failed to fetch Giza TVL:', error);
-      // Keep the default fallback value
+      console.error('Failed to fetch Giza TVL data:', error);
+      // Keep the default fallback values
+    } finally {
+      setTvlLoading(false);
     }
   }, []);
 
@@ -299,7 +319,7 @@ const App: React.FC = () => {
                 customPoints={customPoints}
                 calculateCustomPointsValue={calculateCustomPointsValue}
                 isTvlBased={false}
-                gizaTvl={gizaTvl}
+                gizaTvl={gizaTvlData.totalTvl}
                 almanakTvl={almanakTvl}
                 tvlLoading={tvlLoading}
               />
@@ -354,7 +374,7 @@ const App: React.FC = () => {
                 customPoints={customPoints}
                 calculateCustomPointsValue={calculateCustomPointsValue}
                 isTvlBased={true}
-                gizaTvl={gizaTvl}
+                gizaTvl={gizaTvlData.totalTvl}
                 almanakTvl={almanakTvl}
                 tvlLoading={tvlLoading}
               />
@@ -366,22 +386,43 @@ const App: React.FC = () => {
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">
                   Almanak vs Giza TVL & Token Analysis
                 </h3>
-                <div className="flex items-center justify-center space-x-4">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                    <span className="text-sm text-gray-600">Giza TVL: ${gizaTvl.toLocaleString()}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {/* Giza TVL Breakdown */}
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-green-900 mb-2 text-center">Giza Total TVL: ${gizaTvlData.totalTvl.toLocaleString()}</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Arma TVL:</span>
+                        <span className="font-semibold">${gizaTvlData.armaTvl.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Pulse TVL (USD):</span>
+                        <span className="font-semibold">${gizaTvlData.pulseTvlUsd.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Pulse TVL (ETH):</span>
+                        <span className="font-semibold">{gizaTvlData.pulseTvlEth.toFixed(2)} ETH</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">ETH Price:</span>
+                        <span className="font-semibold">${gizaTvlData.ethPrice.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-                    <span className="text-sm text-gray-600">Almanak TVL: ${almanakTvl.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-cyan-500 rounded-full mr-2"></div>
-                    <span className="text-sm text-gray-600">DeFiLlama: ${almanakDefiLlamaTvl.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
-                    <span className="text-sm text-gray-600">USDC Balance: ${almanakUsdcBalance.toLocaleString()}</span>
+                  
+                  {/* Almanak TVL Breakdown */}
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold text-blue-900 mb-2 text-center">Almanak Total TVL: ${almanakTvl.toLocaleString()}</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">DeFiLlama TVL:</span>
+                        <span className="font-semibold">${almanakDefiLlamaTvl.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">USDC Balance:</span>
+                        <span className="font-semibold">${almanakUsdcBalance.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -392,7 +433,7 @@ const App: React.FC = () => {
                   <h4 className="font-semibold text-green-900 mb-2 text-center">TVL Ratio</h4>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-green-600">
-                      {almanakTvl > 0 ? (almanakTvl / gizaTvl).toFixed(2) : 'N/A'}
+                      {almanakTvl > 0 ? (almanakTvl / gizaTvlData.totalTvl).toFixed(2) : 'N/A'}
                     </p>
                     <p className="text-sm text-gray-600">Almanak/Giza</p>
                   </div>
@@ -401,7 +442,7 @@ const App: React.FC = () => {
                   <h4 className="font-semibold text-blue-900 mb-2 text-center">TVL Difference</h4>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-blue-600">
-                      ${(almanakTvl - gizaTvl).toLocaleString()}
+                      ${(almanakTvl - gizaTvlData.totalTvl).toLocaleString()}
                     </p>
                     <p className="text-sm text-gray-600">Almanak - Giza</p>
                   </div>
@@ -410,7 +451,7 @@ const App: React.FC = () => {
                   <h4 className="font-semibold text-purple-900 mb-2 text-center">Percentage</h4>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-purple-600">
-                      {almanakTvl > 0 ? ((almanakTvl / gizaTvl) * 100).toFixed(1) : 'N/A'}%
+                      {almanakTvl > 0 ? ((almanakTvl / gizaTvlData.totalTvl) * 100).toFixed(1) : 'N/A'}%
                     </p>
                     <p className="text-sm text-gray-600">of Giza TVL</p>
                   </div>
@@ -419,7 +460,7 @@ const App: React.FC = () => {
                   <h4 className="font-semibold text-orange-900 mb-2 text-center">Almanak TVL-based</h4>
                   <div className="text-center">
                     <p className="text-2xl font-bold text-orange-600">
-                      ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvl)).toLocaleString()}
+                      ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvlData.totalTvl)).toLocaleString()}
                     </p>
                     <p className="text-sm text-gray-600">Projected FDV</p>
                   </div>
@@ -455,7 +496,7 @@ const App: React.FC = () => {
                         <div className="flex justify-between">
                           <span className="text-purple-700">Value at TVL Ratio:</span>
                           <span className="font-semibold text-green-600">
-                            ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvl) * data.csnapperAllocation / 100).toLocaleString()}
+                            ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvlData.totalTvl) * data.csnapperAllocation / 100).toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -503,7 +544,7 @@ const App: React.FC = () => {
                              <div className="flex justify-between">
                                <span className="text-indigo-700">Total Value:</span>
                                <span className="font-semibold text-green-600">
-                                 ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvl) * data.phase1TotalPoints / data.almanakSupply).toLocaleString()}
+                                 ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvlData.totalTvl) * data.phase1TotalPoints / data.almanakSupply).toLocaleString()}
                                </span>
                              </div>
                            </div>
@@ -547,7 +588,7 @@ const App: React.FC = () => {
                              <div className="flex justify-between">
                                <span className="text-indigo-700">Total Value:</span>
                                <span className="font-semibold text-green-600">
-                                 ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvl) * data.phase2TotalPoints / data.almanakSupply).toLocaleString()}
+                                 ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvlData.totalTvl) * data.phase2TotalPoints / data.almanakSupply).toLocaleString()}
                                </span>
                              </div>
                            </div>
@@ -583,7 +624,7 @@ const App: React.FC = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
-                    <span className="text-gray-800">Giza TVL: <strong className="text-green-600">${gizaTvl.toLocaleString()}</strong></span>
+                    <span className="text-gray-800">Giza TVL: <strong className="text-green-600">${gizaTvlData.totalTvl.toLocaleString()}</strong></span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
@@ -599,35 +640,35 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
-                    <span className="text-gray-800">TVL Ratio: <strong className="text-purple-600">{almanakTvl > 0 ? (almanakTvl / gizaTvl).toFixed(2) : 'N/A'}</strong></span>
+                    <span className="text-gray-800">TVL Ratio: <strong className="text-purple-600">{almanakTvl > 0 ? (almanakTvl / gizaTvlData.totalTvl).toFixed(2) : 'N/A'}</strong></span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-orange-500 rounded-full mr-3"></div>
-                    <span className="text-gray-800">Almanak is <strong className="text-orange-600">{almanakTvl > gizaTvl ? 'higher' : 'lower'}</strong> than Giza TVL</span>
+                    <span className="text-gray-800">Almanak is <strong className="text-orange-600">{almanakTvl > gizaTvlData.totalTvl ? 'higher' : 'lower'}</strong> than Giza TVL</span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-indigo-500 rounded-full mr-3"></div>
                     <span className="text-gray-800">CSNapper Value (TVL): <strong className="text-indigo-600">
-                      ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvl) * data.csnapperAllocation / 100).toLocaleString()}
+                      ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvlData.totalTvl) * data.csnapperAllocation / 100).toLocaleString()}
                     </strong></span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-yellow-500 rounded-full mr-3"></div>
                     <span className="text-gray-800">Phase 1 Value (TVL): <strong className="text-yellow-600">
-                      ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvl) * data.phase1TotalPoints / data.almanakSupply).toLocaleString()}
+                      ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvlData.totalTvl) * data.phase1TotalPoints / data.almanakSupply).toLocaleString()}
                     </strong></span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-yellow-600 rounded-full mr-3"></div>
                     <span className="text-gray-800">Phase 2 Value (TVL): <strong className="text-yellow-600">
-                      ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvl) * data.phase2TotalPoints / data.almanakSupply).toLocaleString()}
+                      ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvlData.totalTvl) * data.phase2TotalPoints / data.almanakSupply).toLocaleString()}
                     </strong></span>
                   </div>
                   {customPoints > 0 && (
                     <div className="flex items-center">
                       <div className="w-2 h-2 bg-red-500 rounded-full mr-3"></div>
                       <span className="text-gray-800">Your Points Value (TVL): <strong className="text-red-600">
-                        ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvl) * customPoints / data.almanakSupply).toLocaleString()}
+                        ${((data.gizaToken?.fully_diluted_valuation || 0) * (almanakTvl / gizaTvlData.totalTvl) * customPoints / data.almanakSupply).toLocaleString()}
                       </strong></span>
                     </div>
                   )}

@@ -98,13 +98,15 @@ npm run build
 ### Backend Proxy Endpoints
 
 - `GET /api/arma/stats` - Proxy to Arma API (https://api.arma.xyz/api/v1/8453/stats)
+- `GET /api/pulse/stats` - Proxy to Pulse API (https://api.usepulse.xyz/api/v1/metrics/stats)
 - `GET /api/health` - Health check endpoint
 
 ### External APIs Used
 
-- **CoinGecko API**: Token price and market data
+- **CoinGecko API**: Token price and market data (including ETH price for conversion)
 - **DefiLlama API**: TVL data for Almanak
-- **Arma API**: Giza TVL data (via backend proxy)
+- **Arma API**: Giza TVL data (USD values, via backend proxy)
+- **Pulse API**: Additional Giza TVL data (ETH values converted to USD, via backend proxy)
 
 ## Project Structure
 
